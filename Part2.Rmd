@@ -1,0 +1,203 @@
+---
+title: "Project Part 2"
+author: "Parham"
+date: "5/28/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r warning=FALSE}
+library(tidyverse)
+library(data.table)
+Airbnb_raw <- fread(paste0("C:/Users/Parham/Desktop/listings.csv"))
+Airbnb_DT <- Airbnb_raw %>%
+  select(id, name, neighbourhood, last_scraped,
+         host_name, host_location, host_id, host_since, host_listings_count, host_is_superhost,
+         host_response_time, host_response_rate, host_acceptance_rate, host_verifications,
+         latitude, longitude, property_type, room_type, accommodates, bedrooms, beds,price,
+         bathrooms_text, amenities,number_of_reviews, first_review, last_review, review_scores_rating,
+         review_scores_cleanliness, review_scores_location, review_scores_value,
+         review_scores_communication, instant_bookable)
+rm(Airbnb_raw)
+glimpse(Airbnb_DT)
+
+str(Airbnb_DT$price)
+Airbnb_DT <- Airbnb_DT %>%
+  mutate(price = as.numeric(gsub("[\\$,]", "", price)) , 
+         host_acceptance_rate = as.numeric(gsub("[\\%,]", "", host_acceptance_rate)),
+         host_response_rate = as.numeric(gsub("[\\%,]", "", host_response_rate))
+         )
+```
+
+Histogram of price
+
+```{r}
+Airbnb_DT %>%
+  ggplot(aes(x = price)) +
+  geom_histogram() +
+  labs(title = "Histogram of the listings price")
+```
+
+Remove outliers to see price distribution better
+
+```{r}
+summary(Airbnb_DT$price)
+n = dim(Airbnb_DT)[1]
+sum(Airbnb_DT$price > 1250)
+indx <- which(Airbnb_DT$price > 1250)
+indx
+Airbnb_DT[-indx,] %>%
+  ggplot(aes(x = price)) +
+    geom_histogram() +
+    labs(title = "Histogram of the listings price")
+```
+
+Checking predictors
+
+Beds Or Bedrooms
+
+```{r message=FALSE, warning=FALSE}
+cor(Airbnb_DT$beds,Airbnb_DT$bedrooms,use = "na.or.complete")
+Airbnb_DT[-indx,] %>%
+  ggplot(aes(x = bedrooms , y = price)) +
+  geom_point() +
+  geom_jitter()+
+labs(title = "Price vs Bedrooms")
+Airbnb_DT[-indx,] %>%
+  ggplot(aes(x = bedrooms , y = log(price))) +
+  geom_point() +
+  geom_jitter()+
+labs(title = "Logarithm Price vs Bedrooms")
+fit <- lm(log(price) ~ beds ,data = Airbnb_DT[-indx,])
+summary(fit)
+```
+
+Number of reviews
+
+```{r message=FALSE, warning=FALSE}
+Airbnb_DT[-indx,] %>%
+  ggplot(aes(x = number_of_reviews , y = log(price))) +
+  geom_point()+
+labs(title = "Logarithm Price vs Number of reviews")
+fit <- lm(log(price) ~ number_of_reviews ,data = Airbnb_DT[-indx,])
+summary(fit)
+```
+
+Review Scores Rating
+
+```{r message=FALSE, warning=FALSE}
+Airbnb_DT[-indx,] %>%
+  ggplot(aes(x = review_scores_rating , y = log(price))) +
+  geom_point()+
+labs(title = "Logarithm Price vs Review Scores Rating")
+fit <- lm(log(price) ~ review_scores_rating ,data = Airbnb_DT[-indx,])
+summary(fit)
+```
+
+Accommodates
+
+```{r message=FALSE, warning=FALSE}
+Airbnb_DT[-indx,] %>%
+  ggplot(aes(x = accommodates , y = log(price))) +
+  geom_point()+
+  geom_jitter()+
+labs(title = "Logarithm Price vs Accommodates")
+fit <- lm(log(price) ~ accommodates ,data = Airbnb_DT[-indx,])
+summary(fit)
+```
+
+Host acceptance rate & Host response rate
+
+```{r message=FALSE, warning=FALSE}
+Airbnb_DT[-indx,] %>%
+  ggplot(aes(x = host_acceptance_rate , y = log(price))) +
+  geom_point()+
+  geom_jitter()+
+  labs(title = "Logarithm Price vs Host acceptance rate")
+fit <- lm(log(price) ~ host_acceptance_rate ,data = Airbnb_DT[-indx,])
+summary(fit)
+Airbnb_DT[-indx,] %>%
+  ggplot(aes(x = host_response_rate , y = log(price))) +
+  geom_point()+
+  geom_jitter()+
+  labs(title = "Logarithm Price vs Host response rate")
+fit <- lm(log(price) ~ host_response_rate ,data = Airbnb_DT[-indx,])
+summary(fit)
+```
+
+Amenities
+
+```{r}
+p <- ""
+k <- c()
+for(j in 1:nrow(Airbnb_DT))
+{
+  x<-gsub(" ", "", Airbnb_DT$amenities[j])
+  x<-strsplit(x, ",")[[1]]
+  z<-c()
+  for(i in x)
+  {
+    #print(gsub("[^0-9A-Za-z///' ]","'" , i))
+    p<-gsub("[^0-9A-Za-z///' ]","'" , i)
+    p<-gsub("'","",p)
+    z = c(z,p)
+  }
+  k<-c(k,length(z))
+}
+Airbnb_DT <- Airbnb_DT%>%
+  mutate(amenities_length = k)
+Airbnb_DT[-indx,] %>%
+  ggplot(aes(x = amenities_length , y = log(price))) +
+  geom_point()+
+  geom_jitter()+
+  labs(title = "Logarithm Price vs Amenities")
+fit<-lm(log(price) ~ amenities_length ,data = Airbnb_DT[-indx,])
+summary(fit)
+```
+
+We can see correlation matrix
+
+```{r}
+attach(Airbnb_DT)
+data = cbind(price,host_response_rate,host_acceptance_rate,bedrooms,beds,host_listings_count,accommodates,review_scores_rating,number_of_reviews,longitude,latitude,amenities_length)
+cor(data,use = "na.or.complete")[1,]
+```
+
+Use a stepwise algorithm
+
+```{r}
+fit <- lm(log(price) ~ host_response_rate+host_acceptance_rate+bedrooms+host_listings_count+accommodates+review_scores_rating+number_of_reviews+longitude+latitude+amenities_length,data = na.omit(Airbnb_DT))
+summary(fit)
+anova(fit)
+step(fit)
+fit2 <- lm(formula = log(price) ~ host_acceptance_rate + bedrooms + accommodates +
+review_scores_rating + number_of_reviews + longitude + latitude +
+amenities_length, data = na.omit(Airbnb_DT))
+summary(fit2)
+AIC(fit2)
+anova(fit2)
+par(mfrow = c(2,2))
+plot(fit2)
+```
+
+Negative Binomial & Gamma Model
+
+```{r}
+library(MASS)
+fit3 <- glm.nb(price ~ host_acceptance_rate + bedrooms + accommodates +
+review_scores_rating + number_of_reviews + longitude + latitude +
+amenities_length, data = na.omit(Airbnb_DT))
+summary(fit3)
+par(mfrow = c(2,2))
+plot(fit3)
+
+fit4 <- glm(price ~ host_acceptance_rate + bedrooms + accommodates +
+review_scores_rating + number_of_reviews + longitude + latitude +
+amenities_length, data = na.omit(Airbnb_DT), family = Gamma("log"))
+summary(fit4)
+par(mfrow = c(2,2))
+plot(fit4)
+```
